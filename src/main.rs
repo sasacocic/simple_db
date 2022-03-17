@@ -1,9 +1,11 @@
+use arr_macro::arr;
 use core::panic;
 use std::io::{self, Write};
 use std::process::exit;
 use std::result::Result;
-mod table; // tells rust to load this module
-use table::{testing, Page, Pages, Row, Table, MAX_TABLE_PAGES, MAX_TABLE_ROWS};
+use std::str::from_utf8;
+mod table;
+use table::{testing, Page, Row, Table, MAX_TABLE_PAGES, MAX_TABLE_ROWS};
 
 /*
 putting limitations on our db
@@ -19,29 +21,11 @@ putting limitations on our db
 example insert statement: insert 1 cstack foo@bar.com OR insert 1 sasacocic sasacocic@gmail.com
 */
 
-/*
-TODOS
-- store rows in blocks of memory called pages
-- each page stores as many rows as it can fit
-- rows are serialized into a compact representation with each page
-- pages are only allocated as needed
-- keep a fixed-size array of pointers to pages
-*/
-
-/*
-- basically here's what I need to do
-- just store this shit in memory
-*/
-
-// maybe make an 'trait' for table??
-// Obviously username and email should be arrays or vecs or something else to reflect their actual size
-
 enum MetaCommandSuccess {
     Success,
 }
 
 // size of a row should be ~= 291 bytes
-
 // for now only have failure, but would be better to have certain ones for certain errors
 enum MetaCommandFailures {
     Failure(String),
@@ -49,7 +33,7 @@ enum MetaCommandFailures {
 
 // this is the prepare statement??
 fn execute(statement: &str, table: &mut Table) -> Result<MetaCommandSuccess, MetaCommandFailures> {
-    if table.numRows > MAX_TABLE_ROWS {
+    if table.num_rows > MAX_TABLE_ROWS {
         return Err(MetaCommandFailures::Failure(
             "max table rows has been reached".to_string(),
         ));
@@ -57,24 +41,31 @@ fn execute(statement: &str, table: &mut Table) -> Result<MetaCommandSuccess, Met
 
     match statement {
         statement if statement.to_lowercase().starts_with("select") => {
-            for page in table.pages.0.iter() {
-                if page.0.is_some() {
-                    let rows = page.0.as_ref().unwrap();
+            println!("num rows: {}", table.num_rows);
+            for page in table.pages.iter() {
+                if page.rows.is_some() {
+                    let rows = page.rows.as_ref().expect("there to be a row");
                     let mut count = 0;
 
-                    // while let Some(Some(row)) = rows.iter().next() {
                     for row in rows.iter() {
                         if row.is_none() {
                             break;
                         }
-                        let row = row.as_ref().unwrap();
+
+                        let Row {
+                            id,
+                            username,
+                            email,
+                        } = row.as_ref().unwrap();
                         println!(
-                            "{}: id: {:?}, username: {:?}, email: {:?}",
-                            count, row.id, row.username, row.email
+                            "{}: id: {}, username: {}, email: {}",
+                            count,
+                            id,
+                            from_utf8(username).unwrap(),
+                            from_utf8(email).unwrap()
                         );
                         count += 1;
                     }
-                    // }
                 } else {
                     break;
                 }
@@ -94,7 +85,7 @@ fn execute(statement: &str, table: &mut Table) -> Result<MetaCommandSuccess, Met
             let coled: Vec<&str> = statement_split.collect();
 
             table.insert_row(coled).unwrap();
-            table.numRows += 1;
+            // println!("table {:?}", table);
             Ok(MetaCommandSuccess::Success)
         }
         _ => Err(MetaCommandFailures::Failure(
@@ -104,13 +95,10 @@ fn execute(statement: &str, table: &mut Table) -> Result<MetaCommandSuccess, Met
 }
 
 fn main() {
-    testing("insert 1 sasa sasa@coci.com".to_string());
-
-    exit(99);
-
+    testing("testing".to_string());
     let mut table = Table {
-        numRows: 0,
-        pages: Pages(vec![Page(None); MAX_TABLE_PAGES]),
+        num_rows: 0,
+        pages: arr![Page { rows: None }; 100], // 100 === MAX_TABLE_PAGES
     };
 
     loop {
@@ -138,7 +126,7 @@ fn main() {
                         print!("{}", "success\n");
                     }
                     Err(MetaCommandFailures::Failure(message)) => {
-                        println!("failure: {:?}", message);
+                        println!("failure: {}", message);
                     }
                 }
             }
@@ -156,6 +144,11 @@ mod tests {
 
     #[test]
     fn check_input() -> Result<(), String> {
+        /*
+        - basically main problem right now is that the way stdout "looks" isn't nesecarily the way
+        it's displayed
+        */
+
         let inputs = [
             "insert 1 hello hello@gmail.com\n",
             "insert 2 sasa sasa@gmail.com\n",
@@ -194,13 +187,18 @@ mod tests {
                 child
                     .stdout
                     .as_mut()
-                    .expect("stdout")
+                    .expect("expected stdout")
                     .read_to_string(&mut stdout)
                     .expect("thing is read to stdout");
 
                 // print!("stdout of process: {:?}", stdout);
 
-                assert_eq!(stdout, result);
+                // assert_eq!(stdout, result);
+                let formatted = format!("{}", stdout);
+                println!("left {}", format!("{}", stdout));
+                println!("right {}", format!("{}", &result));
+                println!("len left {}, len right {}", formatted.len(), result.len());
+                assert_eq!(format!("{}", stdout), result);
                 child.wait_with_output().expect("this is finish just fine");
 
                 return Ok(());
@@ -211,8 +209,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn insert_string_longer_than_max() -> Result<(), String> {
-        unimplemented!();
-    }
+    // #[test]
+    // fn insert_string_longer_than_max() -> Result<(), String> {
+    //     unimplemented!();
+    // }
 }

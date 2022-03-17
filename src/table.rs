@@ -1,6 +1,5 @@
-use std::marker::Copy;
+use core::panic;
 use std::mem::{size_of, size_of_val};
-use std::str::Split;
 
 // - store rows in blocks of memory called pages
 // page size should be 4096? 4mb * 100 => 400mb
@@ -14,21 +13,8 @@ pub const ROWS_PER_PAGE: usize = PAGE_SIZE / ROW_SIZE;
 #[derive(Debug, Clone)]
 pub struct Row {
     pub id: i64,
-    pub username: String,
-    pub email: String,
-}
-
-// I split on spaces so will get something that
-// looks like ["insert", "1", "sasa", "sasacocic"]
-impl<'a> From<Split<'a, &str>> for Row {
-    fn from(stmnt: Split<&str>) -> Self {
-        let veced: Vec<&str> = stmnt.collect();
-        return Row {
-            id: 1,
-            username: "hello".to_string(),
-            email: "hello".to_string(),
-        };
-    }
+    pub username: [u8; 32],
+    pub email: [u8; 255],
 }
 
 // 291 * 14 = 4,074
@@ -37,11 +23,9 @@ a bit werid because the struct isn't actually 4,074 becuase
 strings in rows can grow larger than expected sooo.....
 */
 #[derive(Debug, Clone)]
-pub struct Page(pub Option<[Option<Row>; 14]>);
-
-#[derive(Debug, Clone)]
-pub struct Pages(pub Vec<Page>);
-
+pub struct Page {
+    pub rows: Option<[Option<Row>; 14]>,
+}
 /*
 Table
     Pages - size 4096 Kb - 100 Pages
@@ -62,103 +46,97 @@ Table
 
 */
 
+#[derive(Debug)]
 pub struct Table {
-    pub numRows: u16,
-    pub pages: Pages,
+    pub num_rows: u16,
+    pub pages: [Page; 100],
 }
-// pub struct Table<T> {
-//     pub numRows: u16,
-//     pub pages: [T; MAX_TABLE_PAGES],
-// }
-//
-// impl<'a> Table<Option<Row>> {
-//     // input arg should be a row, but using a vec for now
-//     pub fn insert_row(&mut self, row: Vec<&'a str>) -> Result<i32, &'a str> {
-//         let id: i64 = row.get(1).unwrap().parse().unwrap();
-//         let username = row.get(2).unwrap().to_string();
-//         let email = row.get(3).unwrap().to_string();
-//         let r = Row {
-//             id: id,
-//             username,
-//             email,
-//         };
-//         // which page does this thing need to be added to?
-//         // well I should just be adding rows to each page until the page is full
-//         // I want to insert this row in the right page....
-//         // self.pages.push(r);
-//         return Ok(1);
-//     }
-// }
 
 impl<'a> Table {
     // input arg should be a row, but using a vec for now
     pub fn insert_row(&mut self, row: Vec<&'a str>) -> Result<i32, &'a str> {
         let id: i64 = row.get(1).unwrap().parse().unwrap();
-        let username = row.get(2).unwrap().to_string();
-        let email = row.get(3).unwrap().to_string();
+        let username = row.get(2).unwrap().as_bytes();
+        let email = row.get(3).unwrap().as_bytes();
+
+        let mut actual_username: [u8; 32] = [0; 32];
+        let mut actual_email: [u8; 255] = [0; 255];
+
+        for (ind, val) in username.into_iter().enumerate() {
+            actual_username[ind] = *val;
+        }
+
+        for (ind, val) in email.into_iter().enumerate() {
+            actual_email[ind] = *val;
+        }
+
         let r = Row {
             id: id,
-            username,
-            email,
+            username: actual_username,
+            email: actual_email,
         };
 
-        // insert in the first free place. Since it's an
-        // array this is be the first place where it isn't None
-        let mut page_count = 0;
-        // the loop should always break.... if it doesn't then I fucked up
-        loop {
-            let page = &mut self.pages.0[page_count].0;
-            match page {
-                Some(things) => {
-                    if (things.iter().any(|e| e.is_none())) {
-                        break;
-                    } else {
-                        page_count += 1
-                    };
+        // 14 is the number of rows that go into a page
+        let page_index = self.num_rows as usize / 14;
+        let row_index = self.num_rows as usize % 14;
+
+        let page = &mut self.pages[page_index];
+
+        // println!(
+        //     "inserting row {:?} at page: {} & row: {}",
+        //     &r, page_index, row_index
+        // );
+
+        // println!("page {:?}", page);
+
+        match page.rows.as_mut() {
+            Some(rows) => {
+                if rows[row_index].is_none() {
+                    rows[row_index] = Some(r);
+                    // println!("page after insert {:?}", rows);
+                    // println!("table page after insert {:?}", self.pages[page_index]);
+                } else {
+                    println!(
+                        "row {:?} && row.get(row_index) {:?}",
+                        rows,
+                        rows.get(row_index)
+                    );
+                    panic!("not adding somehow ..")
                 }
-                None => break,
+                // arr_of_rows[row_index] = Some(r);
+                self.num_rows += 1;
             }
-        }
-        match &mut self.pages.0[page_count] {
-            Page(Some(arr_of_row)) => {
-                // unwrapping here should always be ok, because I found the first thing??
-                let pos = arr_of_row.iter().position(|e| e.is_none()).unwrap();
-                arr_of_row[pos] = Some(r);
-            }
-            Page(None) => {
-                self.pages.0[page_count] = Page(Some([
-                    Some(r),
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                ]))
+            None => {
+                // println!("None branch running");
+                // need to create the page
+                let mut new_page: Page = Page {
+                    rows: Some([
+                        None, None, None, None, None, None, None, None, None, None, None, None,
+                        None, None,
+                    ]),
+                };
+                new_page.rows.as_mut().unwrap()[0] = Some(r);
+                // println!("new page being inserted {:?}", new_page);
+                self.pages[page_index] = new_page;
+                self.num_rows += 1;
             }
         }
         return Ok(1);
     }
 }
 
-// pub fn row_slot(table: &mut NewTable<Row>, row_num: usize) {
-//     let page_numb = row_num / ROWS_PER_PAGE;
-//     match table.pages.get(page_numb) {
-//         Some(row) => {}
-//         None => {
-//             // need to allocate a new row....
-//             // with the array I
-//         }
-//     }
-// }
-
+/* just messing around below here also  */
 pub fn testing(sql_stmnt: String) -> i32 {
+    let mut testing: [String; 4] = [
+        "helo".to_string(),
+        "helo".to_string(),
+        "helo".to_string(),
+        "helo".to_string(),
+    ];
+
+    testing[0] = "slkdjf".to_string();
+
+    // println!("{:?}", testing);
+
     return 99;
 }
