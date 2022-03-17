@@ -3,9 +3,8 @@ use core::panic;
 use std::io::{self, Write};
 use std::process::exit;
 use std::result::Result;
-use std::str::from_utf8;
 mod table;
-use table::{testing, Page, Row, Table, MAX_TABLE_PAGES, MAX_TABLE_ROWS};
+use table::{testing, Page, Table, MAX_TABLE_ROWS};
 
 /*
 putting limitations on our db
@@ -45,30 +44,14 @@ fn execute(statement: &str, table: &mut Table) -> Result<MetaCommandSuccess, Met
             for page in table.pages.iter() {
                 if page.rows.is_some() {
                     let rows = page.rows.as_ref().expect("there to be a row");
-                    let mut count = 0;
 
                     for row in rows.iter() {
                         if row.is_none() {
                             break;
                         }
 
-                        let whole_row = row.as_ref().unwrap();
-                        let Row {
-                            id,
-                            username_length,
-                            email_length,
-                            username,
-                            email,
-                        } = row.as_ref().unwrap();
-                        println!("{:?}", whole_row);
-                        // println!(
-                        //     "{}: id: {}, username: {}, email: {}",
-                        //     count,
-                        //     id,
-                        //     from_utf8(username).unwrap(),
-                        //     from_utf8(email).unwrap()
-                        // );
-                        count += 1;
+                        let row = row.as_ref().unwrap();
+                        println!("{:?}", row);
                     }
                 } else {
                     break;

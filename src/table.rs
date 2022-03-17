@@ -1,17 +1,9 @@
 use core::panic;
 use std::fmt::Debug;
-use std::fmt::{self, Write};
-use std::mem::{size_of, size_of_val};
+use std::fmt::{self};
 use std::str::from_utf8;
 
-// - store rows in blocks of memory called pages
-// page size should be 4096? 4mb * 100 => 400mb
-// max pages = 100
 pub const MAX_TABLE_ROWS: u16 = 4096;
-pub const MAX_TABLE_PAGES: usize = 100;
-pub const PAGE_SIZE: usize = 4096;
-pub const ROW_SIZE: usize = std::mem::size_of::<Row>();
-pub const ROWS_PER_PAGE: usize = PAGE_SIZE / ROW_SIZE;
 
 #[derive(Clone)]
 pub struct Row {
@@ -24,54 +16,18 @@ pub struct Row {
 
 impl Debug for Row {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-        /*
-        (id:{},username:{},email:{})
-         */
-
         let username = &from_utf8(&self.username).unwrap_or("[username]")[0..self.username_length];
         let email = &from_utf8(&self.email).unwrap_or("[email]")[0..self.email_length];
-        //println!(
-        //    "testing: (things|len): ({}|{}) - ({}|{})",
-        //    username,
-        //    username.len(),
-        //    email,
-        //    email.len()
-        //);
         let id = self.id.clone();
         let f_str = format!("(id:{},username:{},email:{})", id, username, email);
-
         f.write_str(f_str.as_str())
     }
 }
 
-// 291 * 14 = 4,074
-/*
-a bit werid because the struct isn't actually 4,074 becuase
-strings in rows can grow larger than expected sooo.....
-*/
 #[derive(Debug, Clone)]
 pub struct Page {
     pub rows: Option<[Option<Row>; 14]>,
 }
-/*
-Table
-    Pages - size 4096 Kb - 100 Pages
-    {
-        [Page; 4096]
-    }
-        Page
-        {
-            [Row; 291] // because 291 * 14 -> 4,074
-        }
-            Row - size 291 bytes - as many as can fit into a page
-            {
-                id, (integer)
-                username, (varchar 32)
-                email (varchar 255)
-            }
-
-
-*/
 
 #[derive(Debug)]
 pub struct Table {
@@ -155,7 +111,7 @@ impl<'a> Table {
 }
 
 /* just messing around below here also  */
-pub fn testing(sql_stmnt: String) -> i32 {
+pub fn testing(_sql_stmnt: String) -> i32 {
     let mut testing: [String; 4] = [
         "helo".to_string(),
         "helo".to_string(),
