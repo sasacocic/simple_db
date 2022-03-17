@@ -1,5 +1,8 @@
 use core::panic;
+use std::fmt::Debug;
+use std::fmt::{self, Write};
 use std::mem::{size_of, size_of_val};
+use std::str::from_utf8;
 
 // - store rows in blocks of memory called pages
 // page size should be 4096? 4mb * 100 => 400mb
@@ -10,11 +13,35 @@ pub const PAGE_SIZE: usize = 4096;
 pub const ROW_SIZE: usize = std::mem::size_of::<Row>();
 pub const ROWS_PER_PAGE: usize = PAGE_SIZE / ROW_SIZE;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Row {
     pub id: i64,
+    pub username_length: usize,
+    pub email_length: usize,
     pub username: [u8; 32],
     pub email: [u8; 255],
+}
+
+impl Debug for Row {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        /*
+        (id:{},username:{},email:{})
+         */
+
+        let username = &from_utf8(&self.username).unwrap_or("[username]")[0..self.username_length];
+        let email = &from_utf8(&self.email).unwrap_or("[email]")[0..self.email_length];
+        //println!(
+        //    "testing: (things|len): ({}|{}) - ({}|{})",
+        //    username,
+        //    username.len(),
+        //    email,
+        //    email.len()
+        //);
+        let id = self.id.clone();
+        let f_str = format!("(id:{},username:{},email:{})", id, username, email);
+
+        f.write_str(f_str.as_str())
+    }
 }
 
 // 291 * 14 = 4,074
@@ -72,7 +99,9 @@ impl<'a> Table {
 
         let r = Row {
             id: id,
+            username_length: username.len(),
             username: actual_username,
+            email_length: email.len(),
             email: actual_email,
         };
 

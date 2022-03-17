@@ -41,7 +41,7 @@ fn execute(statement: &str, table: &mut Table) -> Result<MetaCommandSuccess, Met
 
     match statement {
         statement if statement.to_lowercase().starts_with("select") => {
-            println!("num rows: {}", table.num_rows);
+            // println!("num rows: {}", table.num_rows);
             for page in table.pages.iter() {
                 if page.rows.is_some() {
                     let rows = page.rows.as_ref().expect("there to be a row");
@@ -52,18 +52,22 @@ fn execute(statement: &str, table: &mut Table) -> Result<MetaCommandSuccess, Met
                             break;
                         }
 
+                        let whole_row = row.as_ref().unwrap();
                         let Row {
                             id,
+                            username_length,
+                            email_length,
                             username,
                             email,
                         } = row.as_ref().unwrap();
-                        println!(
-                            "{}: id: {}, username: {}, email: {}",
-                            count,
-                            id,
-                            from_utf8(username).unwrap(),
-                            from_utf8(email).unwrap()
-                        );
+                        println!("{:?}", whole_row);
+                        // println!(
+                        //     "{}: id: {}, username: {}, email: {}",
+                        //     count,
+                        //     id,
+                        //     from_utf8(username).unwrap(),
+                        //     from_utf8(email).unwrap()
+                        // );
                         count += 1;
                     }
                 } else {
@@ -164,8 +168,8 @@ mod tests {
         let result = [
             "db > success",
             "db > success",
-            r#"db > 0: id: 1, username: "hello", email: "hello@gmail.com""#,
-            r#"1: id: 2, username: "sasa", email: "sasa@gmail.com""#,
+            r#"db > (id:1,username:hello,email:hello@gmail.com)"#,
+            r#"(id:2,username:sasa,email:sasa@gmail.com)"#,
             "success",
             "db > ",
         ]
@@ -204,7 +208,8 @@ mod tests {
                 return Ok(());
             }
             Err(err) => {
-                panic!("not good it paniced");
+                eprintln!("{}", err);
+                panic!("not good it paniced {}", err);
             }
         }
     }
